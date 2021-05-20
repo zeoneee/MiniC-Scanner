@@ -32,16 +32,24 @@ const char *tokenName[] = {
 	//   ...........    word symbols ................................. //
 	/* 30         31         32        33         34         35        */
 	"const",    "else",     "if",      "int",     "return",  "void",
-	/* 36         37         38        39                              */
-	"while",    "{",        "||",       "}"
+	/* 36         37          38        39           40         41     */
+	"while",    "{",        "||",       "}",	  "char",    "double",
+	/* 42         43          44        45           46         47     */
+	"for",     "do",       "goto",     "switch",  "case",     "break",
+	/* 48         49          50        51           52         */
+	"default",  ":",        "%tlchar", "%tlstring", "tldouble"
 };
 
 const char *keyword[NO_KEYWORD] = { 
-	"const",  "else",    "if",    "int",    "return",  "void",    "while"
+	"const",  "else",    "if",    "int",    "return",  "void",    "while",
+	"char",   "double",  "for",   "do",     "goto",    "switch",  "case",
+	"break",  "default"
 };
 
 enum tsymbol tnum[NO_KEYWORD] = {	
-	tconst,    telse,     tif,     tint,     treturn,   tvoid,     twhile
+	tconst,    telse,     tif,     tint,     treturn,   tvoid,     twhile,
+	tchar,     tdouble,   tfor,    tdo,      tgoto,     tswitch,   tcase,
+	tbreak,    tdefault
 };
 
 struct tokenType scanner()
@@ -185,6 +193,7 @@ struct tokenType scanner()
 		case ']': token.number = trbracket;       break;
 		case '{': token.number = tlbrace;         break;
 		case '}': token.number = trbrace;         break;
+		case ':': token.number = tcolon;         break;
 		case EOF: token.number = teof;            break;
 		default: {
 			printf("Current character : %c", ch);
