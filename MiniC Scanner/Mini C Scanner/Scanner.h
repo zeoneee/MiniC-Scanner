@@ -43,8 +43,8 @@ enum tsymbol {
 	twhile, tlbrace, tor, trbrace, tchar, tdouble,
 	/* 42         43          44        45           46         47     */
 	tfor, tdo, tgoto, tswitch, tcase, tbreak,
-	/* 48         49          50        51           52         */
-	tdefault, tcolon, tlchar, tlstring, tldouble
+	/* 48         49          50        51           52         53     */
+	tdefault, tcolon, tlchar, tlstring, tldouble, tlcomment
 };
 
 
