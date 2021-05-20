@@ -6,14 +6,20 @@
 #pragma once
 
 
-#define NO_KEYWORD 7	
+#define NO_KEYWORD 16	
 #define ID_LENGTH 12	
+#define MAX_LENGTH 500
 
 struct tokenType {		
 	int number;			// token number
+	int linenum;
+	int columnum;
 	union {
 		char id[ID_LENGTH];
 		int num;
+		char str[MAX_LENGTH];
+		char chr;
+		char comment[MAX_LENGTH];
 	} value;			// token value 
 };
 
@@ -33,8 +39,12 @@ enum tsymbol {
 	//   ...........    word symbols ................................. //
 	/* 30         31          32        33           34         35     */
 	tconst, telse, tif, tint, treturn, tvoid,
-	/* 36         37          38        39                             */
-	twhile, tlbrace, tor, trbrace
+	/* 36         37          38        39           40         41     */
+	twhile, tlbrace, tor, trbrace, tchar, tdouble,
+	/* 42         43          44        45           46         47     */
+	tfor, tdo, tgoto, tswitch, tcase, tbreak,
+	/* 48         49          50        51           52         */
+	tdefault, tcolon, tlchar, tlstring, tldouble
 };
 
 
