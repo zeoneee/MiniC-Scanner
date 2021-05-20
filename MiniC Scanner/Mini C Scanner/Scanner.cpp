@@ -2,6 +2,8 @@
 *      scanner routine for Mini C language                    *
 ***************************************************************/
 
+// 130, 369줄 
+
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -16,7 +18,7 @@ int superLetterOrDigit(char ch);
 int getNumber(char firstCharacter);
 int hexValue(char ch);
 void lexicalError(int n);	
-
+char fileName[30];	// file name 
 
 const char *tokenName[] = {
 	"!",        "!=",      "%",       "%=",     "%ident",   "%number",
@@ -36,8 +38,8 @@ const char *tokenName[] = {
 	"while",    "{",        "||",       "}",	  "char",    "double",
 	/* 42         43          44        45           46         47     */
 	"for",     "do",       "goto",     "switch",  "case",     "break",
-	/* 48         49          50        51           52         */
-	"default",  ":",        "%tlchar", "%tlstring", "tldouble"
+	/* 48         49          50        51           52         53     */
+	"default",  ":",        "%tlchar", "%tlstring", "%tldouble", "%tlcomment"
 };
 
 const char *keyword[NO_KEYWORD] = { 
@@ -52,25 +54,41 @@ enum tsymbol tnum[NO_KEYWORD] = {
 	tbreak,    tdefault
 };
 
-struct tokenType scanner()
+struct tokenType scanner(char file[])
 {
+	strcpy_s(fileName, file);
+
 	struct tokenType token;
 	int i, index;
-	char ch, id[ID_LENGTH];
+	char ch, id[ID_LENGTH], chr;
+	char str[MAX_LENGTH];
+
+	int linenum = 0;
+	int columnum = 0;
+	int precolnum;	// ungetc할 때 columnumber 
 
 	token.number = tnull;	
 
 	do {
-		while (isspace(ch = fgetc(sourceFile)));	// state 1: skip blanks
+		while (isspace(ch = fgetc(sourceFile))) { // state 1: skip blanks
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
+		}
 		if (superLetter(ch)) { // 1. identifier or keyword 
 			i = 0;
+			token.linenum = linenum;	
+			token.columnum = columnum;
 			do {
 				if (i < ID_LENGTH) id[i++] = ch;
 				ch = fgetc(sourceFile);
 			} while (superLetterOrDigit(ch));
 			if (i >= ID_LENGTH) lexicalError(1);
 			id[i] = '\0'; // null
-			ungetc(ch, sourceFile);  //  retract
+			precolnum = columnum;
+			ungetc(ch, sourceFile); linenum--; columnum = precolnum; // retract
 									 // find the identifier in the keyword table
 			for (index = 0; index < NO_KEYWORD; index++)
 				if (!strcmp(id, keyword[index])) break;	
@@ -82,119 +100,213 @@ struct tokenType scanner()
 			}
 		}  // end of identifier or keyword
 		else if (isdigit(ch)) {  // 2. number
+			token.linenum = linenum;
+			token.columnum = columnum;
 			token.number = tnumber;
 			token.value.num = getNumber(ch); 
 		}
 		else switch (ch) {  // 3. special character
+		case '\'': // char
+			ch = fgetc(sourceFile);
+			columnum++;
+			token.number = tlchar;
+			token.linenum = linenum;
+			token.columnum = columnum;
+			token.value.chr = ch;
+			ch = fgetc(sourceFile);
+			if (ch != '\'') lexicalError(5);
+		case '"': // string 
+			ch = fgetc(sourceFile);
+			columnum++;
+			token.number = tlstring;
+			token.linenum = linenum;
+			token.columnum = columnum;
+			int idx = 0;
+			while (ch != '"') {
+				if (ch == '\n') {
+					ch == ' ';
+				}
+				token.value.str[idx++] = ch;
+				ch = fgetc(sourceFile);
+			}
+		case '.':	// 여기도 double 
+			ch = fgetc(sourceFile); 
 		case '/':	
 			ch = fgetc(sourceFile);
-			if (ch == '*')			// text comment
+			columnum++;
+			if (ch == '*') {			// text comment
+				token.number = tlcomment;
+				columnum++;
 				do {
-					while (ch != '*') ch = fgetc(sourceFile); 
 					ch = fgetc(sourceFile);
-				} while (ch != '/'); 
-			else if (ch == '/')		// line comment
-				while (fgetc(sourceFile) != '\n');
-			else if (ch == '=')  token.number = tdivAssign; 
+					if (ch == '*') { // /** ~ */
+						columnum++;
+						ch = fgetc(sourceFile);
+					}
+					token.linenum = linenum;
+					token.columnum = columnum;
+					int idx = 0;
+					while (ch != '*') {
+						token.value.comment[idx++] = ch;
+						ch = fgetc(sourceFile);
+					}
+					ch = fgetc(sourceFile);
+				} while (ch != '/');
+			}
+			else if (ch == '/') {		// line comment
+				token.number = tlcomment;
+				columnum++;
+				ch = fgetc(sourceFile);
+				if (ch == '/') { // multi line comment 
+					columnum++;
+					ch = fgetc(sourceFile);
+				}
+				token.linenum = linenum;
+				token.columnum = columnum;
+				int idx = 0;
+				while (ch != '\n') {
+					token.value.comment[idx++] = ch;
+					ch = fgetc(sourceFile);
+				}
+			}
+			else if (ch == '=') {
+				token.number = tdivAssign;
+				token.linenum = linenum;
+				token.columnum = columnum;
+			}
 			else {
-				token.number = tdiv; 
-				ungetc(ch, sourceFile); // retract
+				token.linenum = linenum;
+				token.columnum = columnum;
+				token.number = tdiv;
+				precolnum = columnum;
+				precolnum = columnum;
+				ungetc(ch, sourceFile); linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '!': // != , !
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '=')  token.number = tnotequ;
 			else {
 				token.number = tnot;
-				ungetc(ch, sourceFile); // retract
+				precolnum = columnum;
+				ungetc(ch, sourceFile); linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '%': // %= , %
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '=') {
 				token.number = tremAssign;
 			}
 			else {
 				token.number = tremainder;
-				ungetc(ch, sourceFile);
+				precolnum = columnum;
+				ungetc(ch, sourceFile); linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '&': // &&
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '&')  token.number = tand;
 			else {
 				lexicalError(2); 
-				ungetc(ch, sourceFile);  // retract
+				precolnum = columnum;
+				ungetc(ch, sourceFile);  linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '*': // *= , *
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '=')  token.number = tmulAssign;
 			else {
 				token.number = tmul;
-				ungetc(ch, sourceFile);  // retract
+				precolnum = columnum;
+				ungetc(ch, sourceFile);  linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '+': // += , +
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '+')  token.number = tinc;
 			else if (ch == '=') token.number = taddAssign;
 			else {
 				token.number = tplus;
-				ungetc(ch, sourceFile);  // retract
+				precolnum = columnum;
+				ungetc(ch, sourceFile);  linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '-': // -= , -
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '-')  token.number = tdec;
 			else if (ch == '=') token.number = tsubAssign;
 			else {
 				token.number = tminus;
-				ungetc(ch, sourceFile);  // retract
+				precolnum = columnum;
+				ungetc(ch, sourceFile);  linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '<': // <= , <
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '=') token.number = tlesse;
 			else {
 				token.number = tless;
-				ungetc(ch, sourceFile);  // retract
+				precolnum = columnum;
+				ungetc(ch, sourceFile);  linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '=': // == , =
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '=')  token.number = tequal;
 			else {
 				token.number = tassign;
-				ungetc(ch, sourceFile);  // retract
+				precolnum = columnum;
+				ungetc(ch, sourceFile);  linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '>': // >= , >
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '=') token.number = tgreate;
 			else {
 				token.number = tgreat;
-				ungetc(ch, sourceFile);  // retract
+				precolnum = columnum;
+				ungetc(ch, sourceFile);  linenum--; columnum = precolnum; // retract
 			}
 			break;
 		case '|': // || 
+			token.linenum = linenum;
+			token.columnum = columnum;
 			ch = fgetc(sourceFile);
 			if (ch == '|')  token.number = tor;
 			else {
 				lexicalError(3); 
-				ungetc(ch, sourceFile);  // retract
+				precolnum = columnum;
+				ungetc(ch, sourceFile);  linenum--; columnum = precolnum; // retract
 			}
 			break;
-		case '(': token.number = tlparen;         break;
-		case ')': token.number = trparen;         break;
-		case ',': token.number = tcomma;          break;
-		case ';': token.number = tsemicolon;      break;
-		case '[': token.number = tlbracket;       break;
-		case ']': token.number = trbracket;       break;
-		case '{': token.number = tlbrace;         break;
-		case '}': token.number = trbrace;         break;
-		case ':': token.number = tcolon;         break;
-		case EOF: token.number = teof;            break;
+		case '(': token.number = tlparen; token.linenum = linenum; token.columnum = columnum;      break;
+		case ')': token.number = trparen; token.linenum = linenum; token.columnum = columnum;      break;
+		case ',': token.number = tcomma; token.linenum = linenum; token.columnum = columnum;      break;
+		case ';': token.number = tsemicolon; token.linenum = linenum; token.columnum = columnum;      break;
+		case '[': token.number = tlbracket; token.linenum = linenum; token.columnum = columnum;      break;
+		case ']': token.number = trbracket; token.linenum = linenum; token.columnum = columnum;      break;
+		case '{': token.number = tlbrace; token.linenum = linenum; token.columnum = columnum;      break;
+		case '}': token.number = trbrace; token.linenum = linenum; token.columnum = columnum;      break;
+		case ':': token.number = tcolon; token.linenum = linenum; token.columnum = columnum;      break;
+		case EOF: token.number = teof; token.linenum = linenum; token.columnum = columnum;      break;
 		default: {
 			printf("Current character : %c", ch);
 			lexicalError(4); 
@@ -217,6 +329,8 @@ void lexicalError(int n)
 	case 3: printf("next character must be |\n"); 
 		break;
 	case 4: printf("invalid character\n");	
+		break;
+	case 5: printf("next character must be \'\n");
 		break;
 	}
 }
@@ -252,6 +366,9 @@ int getNumber(char firstCharacter)
 			} while ((ch >= '0') && (ch <= '7'));
 		else num = 0;						// zero
 	}
+	else if (ch == '.') { // double 
+		//~ 
+	}
 	else {									// decimal
 		ch = firstCharacter;
 		do {
@@ -279,11 +396,13 @@ int hexValue(char ch)
 
 void printToken(struct tokenType token)
 {
+	printf("number: %d, value: %s\n", token.number, token.value.id);
 	if (token.number == tident)
-		printf("number: %d, value: %s\n", token.number, token.value.id);
+		printf("%s (%d, %s, %s, %d, %d)", token.value.id, token.number, token.value.id, fileName, token.linenum, token.columnum);
 	else if (token.number == tnumber)
-		printf("number: %d, value: %d\n", token.number, token.value.num);
+		printf("%s (%d, %s, %s, %d, %d)", token.value.num, token.number, token.value.num, fileName, token.linenum, token.columnum);
+	else if (token.number == tlcomment)
+		printf("%s (%d, %s, %s, %d, %d)", token.value.comment, token.number, token.value.comment, fileName, token.linenum, token.columnum);
 	else
 		printf("number: %d(%s)\n", token.number, tokenName[token.number]);
-
 }
