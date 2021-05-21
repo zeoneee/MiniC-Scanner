@@ -10,7 +10,7 @@
 #define ID_LENGTH 12	
 #define MAX_LENGTH 500
 
-struct tokenType {		
+struct tokenType {
 	int number;			// token number
 	int linenum;
 	int columnum;
@@ -44,9 +44,9 @@ enum tsymbol {
 	/* 42         43          44        45           46         47     */
 	tfor, tdo, tgoto, tswitch, tcase, tbreak,
 	/* 48         49          50        51           52         53     */
-	tdefault, tcolon, tlchar, tlstring, tldouble, tlcomment
+	tdefault, tcolon, tlchar, tlstring, tlcomment
 };
 
 
-struct tokenType scanner();
+struct tokenType scanner(char file[]);
 void printToken(struct tokenType token);
