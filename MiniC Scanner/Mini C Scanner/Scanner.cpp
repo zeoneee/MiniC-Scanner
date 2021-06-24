@@ -15,10 +15,11 @@ extern FILE* sourceFile;                       // miniC source program
 
 int superLetter(char ch);
 int superLetterOrDigit(char ch);
-double getNumber(char firstCharacter,bool isdouble, int columnum);
+double getNumber(char firstCharacter, bool isdouble);
 int hexValue(char ch);
 void lexicalError(int n);
 char fileName[30];	// file name 
+int linenum = 0; int columnum;
 
 const char* tokenName[] = {
 	"!",        "!=",      "%",       "%=",     "%ident",   "%number",
@@ -38,8 +39,8 @@ const char* tokenName[] = {
 	"while",    "{",        "||",       "}",	  "char",    "double",
 	/* 42         43          44        45           46         47     */
 	"for",     "do",       "goto",     "switch",  "case",     "break",
-	/* 48         49          50        51           52          */
-	"default",  ":",        "%tlchar", "%tlstring",  "%tlcomment"
+	/* 48         49          50        51           52         53     */
+	"default",  ":",  "%tlchar", "%tlstring",  "%tlcomment", "%tldouble"
 };
 
 const char* keyword[NO_KEYWORD] = {
@@ -65,9 +66,6 @@ struct tokenType scanner(char file[])
 	int idx;
 	bool isdouble = false;
 
-	int linenum = 0;
-	int columnum = 0;
-
 	token.number = tnull;
 
 	do {
@@ -85,6 +83,11 @@ struct tokenType scanner(char file[])
 			do {
 				if (i < ID_LENGTH) id[i++] = ch;
 				ch = fgetc(sourceFile);
+				if (ch == '\n') {
+					linenum++;
+					columnum = 1;
+				}
+				else columnum++;
 			} while (superLetterOrDigit(ch));
 			if (i >= ID_LENGTH) lexicalError(1);
 			id[i] = '\0'; // null
@@ -102,43 +105,64 @@ struct tokenType scanner(char file[])
 		else if (isdigit(ch)) {  // 2. number
 			token.linenum = linenum;
 			token.columnum = columnum;
-			token.number = tnumber;
-			double num = getNumber(ch,isdouble, columnum);
+
+			double num = getNumber(ch, isdouble);
 			if (isdouble == true) {
-				token.value.num = num;
+				token.number = tldouble;
+				token.value.fnum = num;
 			}
 			else {
+				token.number = tnumber;
 				token.value.num = (int)num;
 			}
 		}
 		else switch (ch) {  // 3. special character
 		case '\'': // char
 			ch = fgetc(sourceFile);
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			token.number = tlchar;
 			token.linenum = linenum;
 			token.columnum = columnum;
 			token.value.chr = ch;
 			ch = fgetc(sourceFile);
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch != '\'') lexicalError(5);
 		case '"': // string 
 			ch = fgetc(sourceFile);
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			token.number = tlstring;
 			token.linenum = linenum;
 			token.columnum = columnum;
 			idx = 0;
 			while (ch != '"') {
-				if (ch == '\n') {
-					linenum++;
-					ch = ' ';
-				}
 				token.value.str[idx++] = ch;
 				ch = fgetc(sourceFile);
+				if (ch == '\n') {
+					linenum++;
+					columnum = 1;
+					ch = ' ';
+				}
+				else columnum++;
 			}
 		case '.':	// 여기도 double 
 			ch = fgetc(sourceFile);
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (isdigit(ch)) {
 				int pointnum = 1;
 				double num = 0;
@@ -148,22 +172,36 @@ struct tokenType scanner(char file[])
 				do {
 					num += (double)(ch - '0') * (double)pow(0.1, pointnum++);
 					ch = fgetc(sourceFile);
-					columnum++;
+					if (ch == '\n') {
+						linenum++;
+						columnum = 1;
+					}
+					else columnum++;
 				} while (isdigit(ch));
 				token.value.num = num;
 			}
 		case '/':
 			ch = fgetc(sourceFile);
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '*') {			// text comment
 				token.number = tlcomment;
-				columnum++;
 				ch = fgetc(sourceFile);
-				if (ch == '\n') linenum++;
-				columnum++;
+				if (ch == '\n') {
+					linenum++;
+					columnum = 1;
+				}
+				else columnum++;
 				if (ch == '*') {
 					ch = fgetc(sourceFile);
-					columnum++;
+					if (ch == '\n') {
+						linenum++;
+						columnum = 1;
+					}
+					else columnum++;
 					token.linenum = linenum;
 					token.columnum = columnum;
 					do {
@@ -171,8 +209,11 @@ struct tokenType scanner(char file[])
 						while (ch != '*') {
 							token.value.comment[idx++] = ch;
 							ch = fgetc(sourceFile);
-							if (ch == '\n') linenum++;
-							columnum++;
+							if (ch == '\n') {
+								linenum++;
+								columnum = 1;
+							}
+							else columnum++;
 						}
 					} while (ch != '/');
 					token.value.comment[idx] = '\0';
@@ -180,20 +221,29 @@ struct tokenType scanner(char file[])
 				else {
 					do {
 						ch = fgetc(sourceFile);
-						if (ch == '\n') linenum++;
-						columnum++;
+						if (ch == '\n') {
+							linenum++;
+							columnum = 1;
+						}
+						else columnum++;
 						token.linenum = linenum;
 						token.columnum = columnum;
 						idx = 0;
 						while (ch != '*') {
-							token.value.comment[idx++] = ch;
+							if (ch != '\n') token.value.comment[idx++] = ch;
 							ch = fgetc(sourceFile);
-							if (ch == '\n') linenum++;
-							columnum++;
+							if (ch == '\n') {
+								linenum++;
+								columnum = 1;
+							}
+							else columnum++;
 						}
 						ch = fgetc(sourceFile);
-						if (ch == '\n') linenum++;
-						columnum++;
+						if (ch == '\n') {
+							linenum++;
+							columnum = 1;
+						}
+						else columnum++;
 					} while (ch != '/');
 					token.value.comment[idx] = '\0';
 				}
@@ -201,12 +251,18 @@ struct tokenType scanner(char file[])
 			else if (ch == '/') {		// line comment
 				token.number = tlcomment;
 				ch = fgetc(sourceFile);
-				if (ch == '\n') linenum++;
-				columnum++;
+				if (ch == '\n') {
+					linenum++;
+					columnum = 1;
+				}
+				else columnum++;
 				if (ch == '/') { // multi line comment 
-					ch = fgetc(sourceFile); 
-					if (ch == '\n') linenum++;
-					columnum++;
+					ch = fgetc(sourceFile);
+					if (ch == '\n') {
+						linenum++;
+						columnum = 1;
+					}
+					else columnum++;
 				}
 				token.linenum = linenum;
 				token.columnum = columnum;
@@ -214,9 +270,13 @@ struct tokenType scanner(char file[])
 				while (ch != '\n') {
 					token.value.comment[idx++] = ch;
 					ch = fgetc(sourceFile);
-					if (ch == '\n') linenum++;
-					columnum++;
+					if (ch == '\n') {
+						linenum++;
+						columnum = 1;
+					}
+					else columnum++;
 				}
+				token.value.comment[idx] = '\0';
 			}
 			else if (ch == '=') {
 				token.number = tdivAssign;
@@ -234,8 +294,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '=')  token.number = tnotequ;
 			else {
 				token.number = tnot;
@@ -246,8 +309,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '=') {
 				token.number = tremAssign;
 			}
@@ -260,8 +326,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '&')  token.number = tand;
 			else {
 				lexicalError(2);
@@ -272,8 +341,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '=')  token.number = tmulAssign;
 			else {
 				token.number = tmul;
@@ -284,8 +356,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '+')  token.number = tinc;
 			else if (ch == '=') token.number = taddAssign;
 			else {
@@ -297,8 +372,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '-')  token.number = tdec;
 			else if (ch == '=') token.number = tsubAssign;
 			else {
@@ -310,8 +388,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '=') token.number = tlesse;
 			else {
 				token.number = tless;
@@ -322,8 +403,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '=')  token.number = tequal;
 			else {
 				token.number = tassign;
@@ -334,8 +418,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '=') token.number = tgreate;
 			else {
 				token.number = tgreat;
@@ -346,8 +433,11 @@ struct tokenType scanner(char file[])
 			token.linenum = linenum;
 			token.columnum = columnum;
 			ch = fgetc(sourceFile);
-			if (ch == '\n') linenum++;
-			columnum++;
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
 			if (ch == '|')  token.number = tor;
 			else {
 				lexicalError(3);
@@ -404,7 +494,7 @@ int superLetterOrDigit(char ch)
 	else return 0;
 }
 
-double getNumber(char firstCharacter,bool isdouble,int columnum)
+double getNumber(char firstCharacter, bool isdouble)
 {
 	double num = 0;
 	int value;
@@ -413,24 +503,46 @@ double getNumber(char firstCharacter,bool isdouble,int columnum)
 
 	if (firstCharacter == '0') {
 		ch = fgetc(sourceFile);
-		columnum++;
+		if (ch == '\n') {
+			linenum++;
+			columnum = 1;
+		}
+		else columnum++;
 		if ((ch == 'X') || (ch == 'x')) {		// hexa decimal
-			while ((value = hexValue(ch = fgetc(sourceFile))) != -1) { columnum++; }
-				columnum++;
-				num = 16 * num + value;
+			while ((value = hexValue(ch = fgetc(sourceFile))) != -1) {
+				if (ch == '\n') {
+					linenum++;
+					columnum = 1;
+				}
+				else columnum++;
+			}
+			if (ch == '\n') {
+				linenum++;
+				columnum = 1;
+			}
+			else columnum++;
+			num = 16 * num + value;
 		}
 		else if ((ch >= '0') && (ch <= '7'))	// octal
 			do {
 				num = 8 * num + (int)(ch - '0');
 				ch = fgetc(sourceFile);
-				columnum++;
+				if (ch == '\n') {
+					linenum++;
+					columnum = 1;
+				}
+				else columnum++;
 			} while ((ch >= '0') && (ch <= '7'));
 		else if (ch == '.') { // double 
 			isdouble = true;
 			do {
 				num += (double)(ch - '0') * (double)pow(0.1, pointnum++);
 				ch = fgetc(sourceFile);
-				columnum++;
+				if (ch == '\n') {
+					linenum++;
+					columnum = 1;
+				}
+				else columnum++;
 			} while (isdigit(ch));
 		}
 		else num = 0;						// zero
@@ -443,13 +555,21 @@ double getNumber(char firstCharacter,bool isdouble,int columnum)
 				do {
 					num += (double)(ch - '0') * (double)pow(0.1, pointnum++);
 					ch = fgetc(sourceFile);
-					columnum++;
+					if (ch == '\n') {
+						linenum++;
+						columnum = 1;
+					}
+					else columnum++;
 				} while (isdigit(ch));
 			}
 			else {
 				num = 10 * num + (int)(ch - '0');
 				ch = fgetc(sourceFile);
-				columnum++;
+				if (ch == '\n') {
+					linenum++;
+					columnum = 1;
+				}
+				else columnum++;
 			}
 		} while (isdigit(ch));
 	}
@@ -473,12 +593,17 @@ int hexValue(char ch)
 
 void printToken(struct tokenType token)
 {
-	if (token.number == tident)	
+	if (token.number == tident)
 		printf("Token ---> %s (%d, %s, %s, %d, %d)\n", token.value.id, token.number, token.value.id, fileName, token.linenum, token.columnum);
-	else if (token.number == tnumber)
-		printf("Token ---> %s (%f, %s, %s, %d, %d)\n", (double)token.value.num, token.number, token.value.num, fileName, token.linenum, token.columnum);
+	else if (token.number == tnumber) {
+		printf("Token ---> %d (%d, %d, %s, %d, %d)\n", token.value.num, token.number, token.value.num, fileName, token.linenum, token.columnum);
+	}
+	else if (token.number == tldouble) {
+		printf("Token ---> %f (%d, %f , %s, %d, %d)\n", token.value.fnum, token.number, token.value.fnum, fileName, token.linenum, token.columnum);
+	}
 	else if (token.number == tlcomment)
 		printf("Documented Comments ---> %s \n", token.value.comment);
-	else
-		printf("Token ---> number: %d(%s)\n", token.number, tokenName[token.number]);
+	else {
+		printf("Token ---> %s (%d, %d, %s, %d, %d)\n", tokenName[token.number], token.number, 0, fileName, token.linenum, token.columnum);
+	}
 }

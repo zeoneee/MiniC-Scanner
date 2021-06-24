@@ -17,6 +17,7 @@ struct tokenType {
 	union {
 		char id[ID_LENGTH];
 		int num;
+		double fnum;
 		char str[MAX_LENGTH];
 		char chr;
 		char comment[MAX_LENGTH];
@@ -44,7 +45,7 @@ enum tsymbol {
 	/* 42         43          44        45           46         47     */
 	tfor, tdo, tgoto, tswitch, tcase, tbreak,
 	/* 48         49          50        51           52         53     */
-	tdefault, tcolon, tlchar, tlstring, tlcomment
+	tdefault, tcolon, tlchar, tlstring, tlcomment, tldouble
 };
 
 

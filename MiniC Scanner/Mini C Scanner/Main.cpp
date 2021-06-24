@@ -3,21 +3,23 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#include "Scanner_expand.h"
+#include "Scanner.h"
 
 void icg_error(int n);
 
 
-FILE *astFile;                          // AST file
-FILE *sourceFile;                       // miniC source program
-FILE *ucodeFile;                        // ucode file
+FILE* astFile;                          // AST file
+FILE* sourceFile;                       // miniC source program
+FILE* ucodeFile;                        // ucode file
 
 #define FILE_LEN 30
 
-void main(int argc, char *argv[])	// 시작할 때 file 전달받기
+void main(int argc, char* argv[])	// 시작할 때 file 전달받기
 {
 	char fileName[FILE_LEN];
 	int err;
+	int linenum = 0;
+	int columnum = 0;
 
 	printf(" *** start of Mini C Compiler\n");
 	if (argc != 2) {
@@ -32,20 +34,19 @@ void main(int argc, char *argv[])	// 시작할 때 file 전달받기
 		icg_error(2);
 		exit(1);
 	}
-	
-	
+
+
 	struct tokenType token;
-	
+
 	printf(" === start of Scanner\n");
-	
-	token = scanner();
-	
+
+	token = scanner(fileName);
+
 	while (token.number != teof) {
 
-		printf("Current Token --> ");
 		printToken(token);
-		token = scanner();
-		
+		token = scanner(fileName);
+
 	} /* while (1) */
 
 
@@ -53,7 +54,7 @@ void main(int argc, char *argv[])	// 시작할 때 file 전달받기
 	printf(" > Not yet implemented...\n");
 	//root = parser();
 	//printTree(root, 0);
-	
+
 	printf(" === start of ICG\n");
 	printf(" > Not yet implemented...\n");
 
